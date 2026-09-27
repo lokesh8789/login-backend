@@ -60,8 +60,10 @@ public class JwtTokenHelper {
     //3. According to JWS Compact Serialization(https://tools.ietf.org/html/draft-ietf-jose-json-web-signature-41#section-3.1)
     //   compaction of the JWT to a URL-safe string
     private String doGenerateToken(String subject, String userId) {
-        Claims claims = Jwts.claims().subject(subject).build();
-        claims.put("userId", userId);
+        Claims claims = Jwts.claims()
+                .subject(subject)
+                .add("userId", userId)
+                .build();
         return Jwts.builder()
                 .claims(claims)
                 .issuedAt(new Date(System.currentTimeMillis()))
