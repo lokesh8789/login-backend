@@ -4,17 +4,26 @@ import com.login.utils.Constants;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.function.Function;
 
 @Component
 @Slf4j
 public class JwtTokenHelper {
+
+    private SecretKey getSignKey() {
+        byte[] bytes = Decoders.BASE64.decode(Constants.SIGNING_KEY);
+        return Keys.hmacShaKeyFor(bytes);
+    }
+
     public String getUsernameFromToken(String token) {
         return getClaimFromToken(token, Claims::getSubject);
     }
@@ -29,7 +38,11 @@ public class JwtTokenHelper {
     }
 
     private Claims getAllClaimsFromToken(String token) {
-        return Jwts.parser().setSigningKey(Constants.SIGNING_KEY).parseClaimsJws(token).getBody();
+        return Jwts.parser()
+                .verifyWith(getSignKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     private Boolean isTokenExpired(String token) {
@@ -47,11 +60,14 @@ public class JwtTokenHelper {
     //3. According to JWS Compact Serialization(https://tools.ietf.org/html/draft-ietf-jose-json-web-signature-41#section-3.1)
     //   compaction of the JWT to a URL-safe string
     private String doGenerateToken(String subject, String userId) {
-        Claims claims = Jwts.claims().setSubject(subject);
+        Claims claims = Jwts.claims().subject(subject).build();
         claims.put("userId", userId);
-        return Jwts.builder().setClaims(claims).setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + Constants.ACCESS_TOKEN_VALIDITY_SECONDS * 1000))
-                .signWith(SignatureAlgorithm.HS512, Constants.SIGNING_KEY).compact();
+        return Jwts.builder()
+                .claims(claims)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + Constants.ACCESS_TOKEN_VALIDITY_SECONDS * 1000))
+                .signWith(getSignKey(), Jwts.SIG.HS512)
+                .compact();
     }
 
     public Boolean validateToken(String token, UserDetails userDetails) {
@@ -65,9 +81,11 @@ public class JwtTokenHelper {
         if (header != null && header.startsWith(Constants.TOKEN_PREFIX)) {
             token = header.replace(Constants.TOKEN_PREFIX, "");
             try {
-                Claims body = Jwts.parser().setSigningKey(Constants.SIGNING_KEY)
-                        .parseClaimsJws(token)
-                        .getBody();
+                Claims body = Jwts.parser()
+                        .verifyWith(getSignKey())
+                        .build()
+                        .parseSignedClaims(token)
+                        .getPayload();
                 return Integer.valueOf((String) body.get("userId"));
             } catch (Exception e) {
                 return null;

@@ -38,6 +38,7 @@ public class UserController {
     public ResponseEntity<List<UserDto>> getAllUsers(HttpServletRequest request) {
         log.info("Get all API Triggered");
         Integer id = jwtTokenHelper.getUserIdFromToken(request);
+        log.info("User Id: {}", id);
         return new ResponseEntity<>(userService.getAllUsers(), HttpStatus.OK);
     }
 
