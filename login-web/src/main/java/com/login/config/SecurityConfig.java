@@ -4,6 +4,8 @@ import com.login.exceptions.FilterExceptionHandler;
 import com.login.security.CustomUserDetailsService;
 import com.login.security.JwtAuthenticationEntryPoint;
 import com.login.security.JwtAuthenticationFilter;
+import com.login.security.OAuth2AuthenticationSuccessHandler;
+import com.login.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -37,6 +39,8 @@ public class SecurityConfig {
     JwtAuthenticationFilter jwtAuthenticationFilter;
     @Autowired
     FilterExceptionHandler filterExceptionHandler;
+    @Autowired
+    OAuth2AuthenticationSuccessHandler authenticationSuccessHandler;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
@@ -51,7 +55,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/login", "/error", "/users/register").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .oauth2Login(oauth -> oauth
+                        .failureUrl(Constants.FRONTEND_OAUTH_FAILURE_URL)
+                        .successHandler(authenticationSuccessHandler));
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(filterExceptionHandler, CorsFilter.class);
         return http.build();
