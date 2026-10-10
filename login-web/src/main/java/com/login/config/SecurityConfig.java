@@ -1,10 +1,7 @@
 package com.login.config;
 
 import com.login.exceptions.FilterExceptionHandler;
-import com.login.security.CustomUserDetailsService;
-import com.login.security.JwtAuthenticationEntryPoint;
-import com.login.security.JwtAuthenticationFilter;
-import com.login.security.OAuth2AuthenticationSuccessHandler;
+import com.login.security.*;
 import com.login.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +38,8 @@ public class SecurityConfig {
     FilterExceptionHandler filterExceptionHandler;
     @Autowired
     OAuth2AuthenticationSuccessHandler authenticationSuccessHandler;
+    @Autowired
+    HttpCookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
@@ -57,6 +56,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2Login(oauth -> oauth
+                        .authorizationEndpoint(ae -> ae.authorizationRequestRepository(cookieOAuth2AuthorizationRequestRepository))
                         .failureUrl(Constants.FRONTEND_OAUTH_FAILURE_URL)
                         .successHandler(authenticationSuccessHandler));
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
