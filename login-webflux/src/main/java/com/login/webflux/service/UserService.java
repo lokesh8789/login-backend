@@ -4,11 +4,15 @@ import com.login.webflux.dto.OAuth2UserInfo;
 import com.login.webflux.dto.UserDto;
 import com.login.webflux.entity.User;
 import com.login.webflux.entity.UserProvider;
+import com.login.webflux.exceptions.UserExistException;
 import com.login.webflux.repo.UserProviderRepo;
 import com.login.webflux.repo.UserRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -23,6 +27,26 @@ public class UserService {
     private final UserRepo userRepo;
     private final ModelMapper modelMapper;
     private final UserProviderRepo userProviderRepo;
+    @Lazy
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    public Mono<Boolean> registerUser(UserDto userDto) {
+        return userRepo.findByEmail(userDto.getEmail())
+                .flatMap(user -> Mono.<Boolean>error(() -> new UserExistException("User with emailId- " + user.getEmail() + " already exist")))
+                .switchIfEmpty(Mono.defer(() -> {
+                    User user = modelMapper.map(userDto, User.class);
+                    user.setPassword(passwordEncoder.encode(user.getPassword()));
+                    return userRepo.save(user)
+                            .thenReturn(true);
+                }))
+                .onErrorResume(e -> {
+                    if (e instanceof UserExistException) {
+                        return Mono.error(e);
+                    }
+                    return Mono.just(false);
+                });
+    }
 
     public Mono<UserDto> getUserById(int id) {
         return userRepo.findById(id)

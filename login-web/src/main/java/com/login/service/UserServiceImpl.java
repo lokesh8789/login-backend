@@ -12,6 +12,8 @@ import com.login.repo.UserRepo;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,6 +28,9 @@ public class UserServiceImpl implements UserService {
     public UserRepo userRepo;
     @Autowired
     private UserProviderRepo userProviderRepo;
+    @Autowired
+    @Lazy
+    private PasswordEncoder passwordEncoder;
 
     @Override
     public boolean registerUser(UserDto userDto) {
@@ -35,6 +40,7 @@ public class UserServiceImpl implements UserService {
         }
         User user = modelMapper.map(userDto, User.class);
         try {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
             userRepo.save(user);
             return true;
         } catch (Exception e) {
