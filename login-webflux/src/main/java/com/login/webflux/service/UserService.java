@@ -1,20 +1,28 @@
 package com.login.webflux.service;
 
+import com.login.webflux.dto.OAuth2UserInfo;
 import com.login.webflux.dto.UserDto;
 import com.login.webflux.entity.User;
+import com.login.webflux.entity.UserProvider;
+import com.login.webflux.repo.UserProviderRepo;
 import com.login.webflux.repo.UserRepo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Optional;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepo userRepo;
     private final ModelMapper modelMapper;
+    private final UserProviderRepo userProviderRepo;
 
     public Mono<UserDto> getUserById(int id) {
         return userRepo.findById(id)
@@ -35,4 +43,71 @@ public class UserService {
         return userRepo.findByNameContaining(name)
                 .map(user -> modelMapper.map(user, UserDto.class));
     }
+
+    public Mono<UserDto> processOAuthUser(OAuth2UserInfo userInfo) {
+        return userProviderRepo.findByProviderIdAndProvider(userInfo.getProviderId(), userInfo.getAuthProvider())
+                .map(userProvider -> getUserById(userProvider.getUserId()))
+                .switchIfEmpty(Mono.defer(() -> getUserByEmail(userInfo.getEmail())
+                        .switchIfEmpty(Mono.defer(() -> {
+                                    String email = userInfo.getEmail();
+                                    String displayName = (userInfo.getName() != null && !userInfo.getName().isBlank())
+                                            ? userInfo.getName()
+                                            : (email != null && email.contains("@") ? email.substring(0, email.indexOf('@')) : "User");
+                                    User u = User.builder()
+                                            .name(displayName)
+                                            .email(userInfo.getEmail())
+                                            .build();
+                                    return userRepo.save(u)
+                                            .map(user -> modelMapper.map(user, UserDto.class));
+                                })
+                        )
+                        .flatMap(userDto -> {
+                            UserProvider newProvider = UserProvider.builder()
+                                    .providerId(userInfo.getProviderId())
+                                    .provider(userInfo.getAuthProvider())
+                                    .userId(userDto.getId())
+                                    .build();
+                            log.info("Creating New Provider {} For Email: {}", userInfo.getAuthProvider(), userInfo.getEmail());
+                            return userProviderRepo.save(newProvider)
+                                    .thenReturn(userDto);
+                        })
+                        .map(Mono::just))
+                )
+                .flatMap(mono -> mono);
+    }
+
+    /*public Mono<UserDto> processOAuthUser(OAuth2UserInfo userInfo) {
+        return userProviderRepo.findByProviderIdAndProvider(userInfo.getProviderId(), userInfo.getAuthProvider())
+                .map(Optional::of)
+                .defaultIfEmpty(Optional.empty())
+                .flatMap(opt -> {
+                    if (opt.isPresent()) {
+                        return getUserById(opt.get().getUserId());
+                    }
+                    return getUserByEmail(userInfo.getEmail())
+                            .switchIfEmpty(Mono.defer(() -> {
+                                    String email = userInfo.getEmail();
+                                    String displayName = (userInfo.getName() != null && !userInfo.getName().isBlank())
+                                            ? userInfo.getName()
+                                            : (email != null && email.contains("@") ? email.substring(0, email.indexOf('@')) : "User");
+                                    User u = User.builder()
+                                            .name(displayName)
+                                            .email(userInfo.getEmail())
+                                            .build();
+                                    return userRepo.save(u)
+                                            .map(user -> modelMapper.map(user, UserDto.class));
+                                })
+                        )
+                            .flatMap(userDto -> {
+                                UserProvider newProvider = UserProvider.builder()
+                                        .providerId(userInfo.getProviderId())
+                                        .provider(userInfo.getAuthProvider())
+                                        .userId(userDto.getId())
+                                        .build();
+                                log.info("Creating New Provider {} For Email: {}", userInfo.getAuthProvider(), userInfo.getEmail());
+                                return userProviderRepo.save(newProvider)
+                                        .thenReturn(userDto);
+                            });
+                });
+    }*/
 }

@@ -1,8 +1,7 @@
 package com.login.webflux.config;
 
-import com.login.webflux.security.JwtAuthenticationFilter;
-import com.login.webflux.security.JwtSecurityContextRepository;
-import com.login.webflux.security.JwtTokenUtil;
+import com.login.webflux.security.*;
+import com.login.webflux.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
+import org.springframework.security.web.server.authentication.RedirectServerAuthenticationFailureHandler;
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
@@ -29,6 +29,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final ServerAuthenticationEntryPoint authenticationEntryPoint;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
 
     // --> Security Context Repository Way (header -> authenticated)
     @Bean
@@ -45,6 +47,10 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .securityContextRepository(securityContextRepository)
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationRequestRepository(cookieOAuth2AuthorizationRequestRepository)
+                        .authenticationSuccessHandler(oAuth2AuthenticationSuccessHandler)
+                        .authenticationFailureHandler(new RedirectServerAuthenticationFailureHandler(Constants.FRONTEND_OAUTH_FAILURE_URL)))
                 .build();
     }
 
